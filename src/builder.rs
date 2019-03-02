@@ -1,14 +1,9 @@
 //! Interfaces for building various structures
 
-use crate::{errors::Error, Result};
+use crate::{Result, errors::Error};
 use serde::Serialize;
-use serde_json::{self, json, map::Map, Value};
-use std::{
-    cmp::Eq,
-    collections::{BTreeMap, HashMap},
-    hash::Hash,
-    iter::{IntoIterator, Peekable},
-};
+use serde_json::{self, json, Value, map::Map};
+use std::{cmp::Eq, collections::{BTreeMap, HashMap}, hash::Hash, iter::{IntoIterator, Peekable}};
 use url::form_urlencoded;
 
 #[derive(Default)]
@@ -463,8 +458,9 @@ impl ContainerOptionsBuilder {
          * and to apply them to the local 'binding' variable,
          * add the bind we want and replace the 'old' value */
         let mut binding: HashMap<String, Value> = HashMap::new();
-        for (key, val) in self
-            .params
+        let mut expose: HashMap<String, &HashMap<(), ()>> = HashMap::new();
+        let empty = HashMap::new();
+        for (key, val) in self.params
             .get("HostConfig.PortBindings")
             .unwrap_or(&json!(null))
             .as_object()
@@ -472,12 +468,14 @@ impl ContainerOptionsBuilder {
             .iter()
         {
             binding.insert(key.to_string(), json!(val));
+            expose.insert(key.to_string(), &empty);
         }
         binding.insert(
             format!("{}/{}", srcport, protocol),
             json!(vec![exposedport]),
         );
 
+        self.params.insert("ExposedPorts", json!(expose));
         self.params
             .insert("HostConfig.PortBindings", json!(binding));
         self
